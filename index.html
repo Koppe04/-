@@ -23,6 +23,7 @@
       flex-direction: column;
       align-items: center;
       padding: 16px;
+      padding-bottom: 200px;
       gap: 16px;
     }
     header {
@@ -59,9 +60,9 @@
 
     #gameLayout {
       display: grid;
-      grid-template-columns: minmax(auto, 360px);
+      grid-template-columns: minmax(auto, 480px);
       gap: 16px;
-      width: min(420px, 94vw);
+      width: min(520px, 94vw);
     }
     #canvasContainer {
       background: rgba(10, 12, 22, 0.7);
@@ -112,62 +113,78 @@
     }
 
     #touchControls {
-      margin-top: auto;
-      width: min(420px, 96vw);
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: space-between;
+      padding: 0 24px 24px;
+      padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+      pointer-events: none;
+      z-index: 20;
+    }
+    .control-column {
+      display: flex;
+      flex-direction: column;
       gap: 12px;
-      padding: 12px;
-      border-radius: 16px;
-      background: rgba(10, 12, 22, 0.6);
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
-      touch-action: none;
+      pointer-events: auto;
+    }
+    .left-controls {
+      align-items: flex-start;
+    }
+    .right-controls {
+      align-items: flex-end;
     }
     .control-btn {
-      padding: 16px 0;
-      font-size: clamp(1.2rem, 3vw + 0.4rem, 1.8rem);
+      width: clamp(60px, 12vw, 84px);
+      height: clamp(60px, 12vw, 84px);
+      font-size: clamp(1.6rem, 4vw + 0.4rem, 2rem);
       font-weight: 600;
-      border-radius: 12px;
+      border-radius: 50%;
       border: none;
-      background: linear-gradient(140deg, rgba(76, 156, 255, 0.9), rgba(104, 79, 255, 0.85));
-      color: #12131f;
+      background: linear-gradient(140deg, rgba(76, 156, 255, 0.92), rgba(104, 79, 255, 0.88));
+      color: #101523;
       cursor: pointer;
       touch-action: none;
       user-select: none;
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
-      transition: transform 0.08s ease;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16), 0 14px 26px rgba(0, 0, 0, 0.4);
+      transition: transform 0.08s ease, filter 0.12s ease;
     }
     .control-btn:active {
-      transform: scale(0.96);
+      transform: scale(0.94);
+      filter: brightness(0.95);
     }
 
     @media (min-width: 768px) {
       #gameLayout {
-        grid-template-columns: minmax(auto, 360px) 1fr;
+        grid-template-columns: minmax(auto, 480px) 1fr;
         align-items: start;
       }
       #touchControls {
-        grid-template-columns: repeat(4, 100px);
-        justify-content: center;
+        padding: 0 32vw;
+        padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
       }
     }
 
     @media (pointer: fine) {
       #touchControls {
-        opacity: 0.82;
+        opacity: 0.55;
+      }
+      #touchControls:hover {
+        opacity: 0.85;
       }
     }
   </style>
 </head>
 <body>
   <header>
-    <h1>ぷよぷよ風落ちゲー（簡易版）</h1>
     <button id="startButton">スタート</button>
   </header>
 
   <main id="gameLayout">
     <div id="canvasContainer">
-      <canvas id="gameCanvas" width="288" height="576"></canvas>
+      <canvas id="gameCanvas" width="384" height="576"></canvas>
     </div>
     <aside id="hud">
       <h2>ゲーム情報</h2>
@@ -179,10 +196,14 @@
   </main>
 
   <nav id="touchControls">
-    <button class="control-btn" data-action="left" aria-label="左に移動">◀︎</button>
-    <button class="control-btn" data-action="right" aria-label="右に移動">▶︎</button>
-    <button class="control-btn" data-action="down" aria-label="ソフトドロップ">▼</button>
-    <button class="control-btn" data-action="rotate" aria-label="回転">⟳</button>
+    <div class="control-column left-controls">
+      <button class="control-btn" data-action="down" aria-label="ソフトドロップ">🔽</button>
+      <button class="control-btn" data-action="left" aria-label="左に移動">◀️</button>
+    </div>
+    <div class="control-column right-controls">
+      <button class="control-btn" data-action="rotate" aria-label="回転">⟳</button>
+      <button class="control-btn" data-action="right" aria-label="右に移動">▶️</button>
+    </div>
   </nav>
 
   <script>
@@ -194,7 +215,7 @@
     const maxChainValue = document.getElementById("maxChainValue");
     const currentChainValue = document.getElementById("currentChainValue");
 
-    const COLS = 6;
+    const COLS = 8;
     const ROWS = 12;
     const COLORS = ["#000000", "#ff595e", "#ffca3a", "#8ac926", "#1982c4", "#6a4c93"];
     const DROP_INTERVAL = 700;
@@ -278,6 +299,7 @@
           running = false;
         }
       });
+      applyGravity();
       const result = resolveBoard();
       if (result.totalCleared > 0) {
         const gained = result.totalCleared * 10 * result.chainCount;
@@ -455,7 +477,7 @@
     }
 
     function resizeCanvas() {
-      const maxCanvasWidth = Math.min(window.innerWidth * 0.9, 360);
+      const maxCanvasWidth = Math.min(window.innerWidth * 0.9, COLS * 60);
       const computedCell = Math.floor(maxCanvasWidth / COLS);
       cellSize = Math.max(28, Math.min(56, computedCell));
       const width = COLS * cellSize;
