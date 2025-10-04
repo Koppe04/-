@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ぷよぷよ風落ちゲー（簡易版）</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #1e1f2a;
+      --panel: #25273a;
+      --accent: #4c9cff;
+      --text: #f4f6ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "ヒラギノ角ゴ ProN", "Hiragino Kaku Gothic ProN", sans-serif;
+      background: radial-gradient(circle at 20% 20%, #2e3150, #151625);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+      gap: 16px;
+    }
+    header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      text-align: center;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(1.4rem, 2.4vw + 1rem, 2.4rem);
+      letter-spacing: 0.05em;
+    }
+    #startButton {
+      padding: 10px 28px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #08101f;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 8px 16px rgba(76, 156, 255, 0.25);
+      transition: transform 0.15s ease, filter 0.15s ease;
+      touch-action: manipulation;
+    }
+    #startButton:active {
+      transform: translateY(1px) scale(0.99);
+    }
+    #startButton:hover {
+      filter: brightness(1.1);
+    }
+
+    #gameLayout {
+      display: grid;
+      grid-template-columns: minmax(auto, 360px);
+      gap: 16px;
+      width: min(420px, 94vw);
+    }
+    #canvasContainer {
+      background: rgba(10, 12, 22, 0.7);
+      border-radius: 16px;
+      padding: 12px;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+      display: flex;
+      justify-content: center;
+    }
+    #gameCanvas {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      border-radius: 12px;
+      border: 3px solid rgba(255, 255, 255, 0.08);
+      background: #111324;
+    }
+
+    #hud {
+      background: rgba(10, 12, 22, 0.7);
+      border-radius: 16px;
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+    #hud h2 {
+      margin: 0;
+      font-size: 1.05rem;
+      letter-spacing: 0.04em;
+      color: rgba(255, 255, 255, 0.85);
+    }
+    .hud-line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .hud-label {
+      opacity: 0.75;
+    }
+    .hud-value {
+      font-weight: 600;
+    }
+
+    #touchControls {
+      margin-top: auto;
+      width: min(420px, 96vw);
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      padding: 12px;
+      border-radius: 16px;
+      background: rgba(10, 12, 22, 0.6);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+      touch-action: none;
+    }
+    .control-btn {
+      padding: 16px 0;
+      font-size: clamp(1.2rem, 3vw + 0.4rem, 1.8rem);
+      font-weight: 600;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(140deg, rgba(76, 156, 255, 0.9), rgba(104, 79, 255, 0.85));
+      color: #12131f;
+      cursor: pointer;
+      touch-action: none;
+      user-select: none;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+      transition: transform 0.08s ease;
+    }
+    .control-btn:active {
+      transform: scale(0.96);
+    }
+
+    @media (min-width: 768px) {
+      #gameLayout {
+        grid-template-columns: minmax(auto, 360px) 1fr;
+        align-items: start;
+      }
+      #touchControls {
+        grid-template-columns: repeat(4, 100px);
+        justify-content: center;
+      }
+    }
+
+    @media (pointer: fine) {
+      #touchControls {
+        opacity: 0.82;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ぷよぷよ風落ちゲー（簡易版）</h1>
+    <button id="startButton">スタート</button>
+  </header>
+
+  <main id="gameLayout">
+    <div id="canvasContainer">
+      <canvas id="gameCanvas" width="288" height="576"></canvas>
+    </div>
+    <aside id="hud">
+      <h2>ゲーム情報</h2>
+      <div class="hud-line"><span class="hud-label">スコア</span><span class="hud-value" id="scoreValue">0</span></div>
+      <div class="hud-line"><span class="hud-label">最大連鎖</span><span class="hud-value" id="maxChainValue">0</span></div>
+      <div class="hud-line"><span class="hud-label">直近連鎖</span><span class="hud-value" id="currentChainValue">0</span></div>
+      <div class="hud-line"><span class="hud-label">操作</span><span class="hud-value">← → / ↑ / ↓</span></div>
+    </aside>
+  </main>
+
+  <nav id="touchControls">
+    <button class="control-btn" data-action="left" aria-label="左に移動">◀︎</button>
+    <button class="control-btn" data-action="right" aria-label="右に移動">▶︎</button>
+    <button class="control-btn" data-action="down" aria-label="ソフトドロップ">▼</button>
+    <button class="control-btn" data-action="rotate" aria-label="回転">⟳</button>
+  </nav>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const startButton = document.getElementById("startButton");
+    const controlButtons = document.querySelectorAll(".control-btn");
+    const scoreValue = document.getElementById("scoreValue");
+    const maxChainValue = document.getElementById("maxChainValue");
+    const currentChainValue = document.getElementById("currentChainValue");
+
+    const COLS = 6;
+    const ROWS = 12;
+    const COLORS = ["#000000", "#ff595e", "#ffca3a", "#8ac926", "#1982c4", "#6a4c93"];
+    const DROP_INTERVAL = 700;
+    const SOFT_DROP_INTERVAL = 85;
+
+    let board;
+    let currentPair;
+    let dropTimer = 0;
+    let lastTime = 0;
+    let running = false;
+    let cellSize = 48;
+    let score = 0;
+    let maxChain = 0;
+
+    const keyState = { down: false };
+    let repeatTimer = null;
+    let repeatDirection = null;
+
+    function emptyBoard() {
+      return Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+    }
+
+    function randColor() {
+      return 1 + Math.floor(Math.random() * (COLORS.length - 1));
+    }
+
+    function newPair() {
+      const centerX = Math.floor(COLS / 2);
+      return {
+        anchor: { x: centerX, y: 0 },
+        offset: { x: 0, y: -1 },
+        colors: [randColor(), randColor()],
+      };
+    }
+
+    function cellsForPair(pair) {
+      return [
+        { x: pair.anchor.x, y: pair.anchor.y, color: pair.colors[0] },
+        {
+          x: pair.anchor.x + pair.offset.x,
+          y: pair.anchor.y + pair.offset.y,
+          color: pair.colors[1],
+        },
+      ];
+    }
+
+    function inBounds(x, y) {
+      return x >= 0 && x < COLS && y < ROWS;
+    }
+
+    function collision(pair, dx, dy) {
+      return cellsForPair(pair).some(cell => {
+        const nx = cell.x + dx;
+        const ny = cell.y + dy;
+        if (!inBounds(nx, ny)) return true;
+        if (ny >= 0 && board[ny][nx] !== 0) return true;
+        return false;
+      });
+    }
+
+    function movePair(dx, dy) {
+      if (!currentPair || collision(currentPair, dx, dy)) return;
+      currentPair.anchor.x += dx;
+      currentPair.anchor.y += dy;
+    }
+
+    function rotatePair() {
+      if (!currentPair) return;
+      const rotated = { x: -currentPair.offset.y, y: currentPair.offset.x };
+      const testPair = { ...currentPair, offset: rotated };
+      if (!collision(testPair, 0, 0)) {
+        currentPair.offset = rotated;
+      }
+    }
+
+    function lockPair() {
+      cellsForPair(currentPair).forEach(cell => {
+        if (cell.y >= 0 && inBounds(cell.x, cell.y)) {
+          board[cell.y][cell.x] = cell.color;
+        } else {
+          running = false;
+        }
+      });
+      const result = resolveBoard();
+      if (result.totalCleared > 0) {
+        const gained = result.totalCleared * 10 * result.chainCount;
+        score += gained;
+        maxChain = Math.max(maxChain, result.chainCount);
+        currentChainValue.textContent = result.chainCount;
+      } else {
+        currentChainValue.textContent = 0;
+      }
+      updateHud();
+      currentPair = null;
+    }
+
+    function resolveBoard() {
+      let totalCleared = 0;
+      let chainCount = 0;
+      while (true) {
+        const clusters = findClusters();
+        if (!clusters.length) break;
+        chainCount += 1;
+        clusters.forEach(({ x, y }) => {
+          board[y][x] = 0;
+        });
+        totalCleared += clusters.length;
+        applyGravity();
+      }
+      return { totalCleared, chainCount };
+    }
+
+    function findClusters() {
+      const visited = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
+      const toClear = [];
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          const color = board[y][x];
+          if (!color || visited[y][x]) continue;
+          const stack = [{ x, y }];
+          const group = [];
+          visited[y][x] = true;
+          while (stack.length) {
+            const { x: cx, y: cy } = stack.pop();
+            group.push({ x: cx, y: cy });
+            [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => {
+              const nx = cx + dx;
+              const ny = cy + dy;
+              if (inBounds(nx, ny) && !visited[ny][nx] && board[ny][nx] === color) {
+                visited[ny][nx] = true;
+                stack.push({ x: nx, y: ny });
+              }
+            });
+          }
+          if (group.length >= 4) {
+            toClear.push(...group);
+          }
+        }
+      }
+      return toClear;
+    }
+
+    function applyGravity() {
+      for (let x = 0; x < COLS; x++) {
+        let writeRow = ROWS - 1;
+        for (let y = ROWS - 1; y >= 0; y--) {
+          if (board[y][x]) {
+            board[writeRow][x] = board[y][x];
+            if (writeRow !== y) board[y][x] = 0;
+            writeRow -= 1;
+          }
+        }
+      }
+    }
+
+    function update(time) {
+      if (!running) return;
+      if (!lastTime) lastTime = time;
+      const delta = time - lastTime;
+      lastTime = time;
+      dropTimer += delta;
+
+      const dropLimit = keyState.down ? SOFT_DROP_INTERVAL : DROP_INTERVAL;
+      if (dropTimer >= dropLimit) {
+        dropTimer = 0;
+        if (!collision(currentPair, 0, 1)) {
+          movePair(0, 1);
+        } else {
+          lockPair();
+          currentPair = newPair();
+          if (collision(currentPair, 0, 0)) {
+            running = false;
+            startButton.textContent = "再スタート";
+            return;
+          }
+        }
+      }
+
+      draw();
+      requestAnimationFrame(update);
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#101225";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          const colorId = board[y][x];
+          if (colorId) drawCell(x, y, COLORS[colorId]);
+        }
+      }
+      if (currentPair) {
+        cellsForPair(currentPair).forEach(cell => {
+          if (cell.y >= 0) drawCell(cell.x, cell.y, COLORS[cell.color]);
+        });
+      }
+      drawGrid();
+    }
+
+    function drawCell(x, y, color) {
+      const padding = Math.max(4, cellSize * 0.14);
+      const px = x * cellSize;
+      const py = y * cellSize;
+      const rectX = px + padding;
+      const rectY = py + padding;
+      const rectSize = cellSize - padding * 2;
+      const radius = Math.min(10, cellSize * 0.3);
+      ctx.fillStyle = color;
+      if (typeof ctx.roundRect === "function") {
+        ctx.beginPath();
+        ctx.roundRect(rectX, rectY, rectSize, rectSize, radius);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(0,0,0,0.25)";
+        ctx.stroke();
+      } else {
+        ctx.fillRect(rectX, rectY, rectSize, rectSize);
+        ctx.strokeStyle = "rgba(0,0,0,0.25)";
+        ctx.strokeRect(rectX, rectY, rectSize, rectSize);
+      }
+    }
+
+    function drawGrid() {
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.04)";
+      for (let x = 0; x <= COLS; x++) {
+        ctx.beginPath();
+        ctx.moveTo(x * cellSize + 0.5, 0);
+        ctx.lineTo(x * cellSize + 0.5, ROWS * cellSize);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= ROWS; y++) {
+        ctx.beginPath();
+        ctx.moveTo(0, y * cellSize + 0.5);
+        ctx.lineTo(COLS * cellSize, y * cellSize + 0.5);
+        ctx.stroke();
+      }
+    }
+
+    function updateHud() {
+      scoreValue.textContent = score;
+      maxChainValue.textContent = maxChain;
+    }
+
+    function startGame() {
+      board = emptyBoard();
+      currentPair = newPair();
+      dropTimer = 0;
+      lastTime = 0;
+      score = 0;
+      maxChain = 0;
+      currentChainValue.textContent = 0;
+      updateHud();
+      running = true;
+      startButton.textContent = "リセット";
+      resizeCanvas();
+      requestAnimationFrame(update);
+    }
+
+    function resizeCanvas() {
+      const maxCanvasWidth = Math.min(window.innerWidth * 0.9, 360);
+      const computedCell = Math.floor(maxCanvasWidth / COLS);
+      cellSize = Math.max(28, Math.min(56, computedCell));
+      const width = COLS * cellSize;
+      const height = ROWS * cellSize;
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+    }
+
+    startButton.addEventListener("click", () => {
+      startGame();
+    });
+
+    document.addEventListener("keydown", e => {
+      if (!running) return;
+      if (e.key === "ArrowLeft") {
+        movePair(-1, 0);
+      } else if (e.key === "ArrowRight") {
+        movePair(1, 0);
+      } else if (e.key === "ArrowDown") {
+        keyState.down = true;
+      } else if (e.key === "ArrowUp") {
+        rotatePair();
+      }
+    });
+
+    document.addEventListener("keyup", e => {
+      if (e.key === "ArrowDown") keyState.down = false;
+    });
+
+    function startRepeat(direction) {
+      const dx = direction === "left" ? -1 : 1;
+      movePair(dx, 0);
+      if (repeatTimer) clearInterval(repeatTimer);
+      repeatDirection = direction;
+      repeatTimer = setInterval(() => {
+        movePair(dx, 0);
+      }, 130);
+    }
+
+    function stopRepeat(direction) {
+      if (repeatDirection && (!direction || direction === repeatDirection)) {
+        clearInterval(repeatTimer);
+        repeatTimer = null;
+        repeatDirection = null;
+      }
+    }
+
+    function handleControlDown(event) {
+      event.preventDefault();
+      const action = event.currentTarget.dataset.action;
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      if (!running) return;
+      switch (action) {
+        case "left":
+        case "right":
+          startRepeat(action);
+          break;
+        case "down":
+          keyState.down = true;
+          break;
+        case "rotate":
+          rotatePair();
+          break;
+      }
+    }
+
+    function handleControlUp(event) {
+      const action = event.currentTarget.dataset.action;
+      if (action === "left" || action === "right") {
+        stopRepeat(action);
+      }
+      if (action === "down") {
+        keyState.down = false;
+      }
+    }
+
+    controlButtons.forEach(button => {
+      button.addEventListener("pointerdown", handleControlDown);
+      button.addEventListener("pointerup", handleControlUp);
+      button.addEventListener("pointerleave", handleControlUp);
+      button.addEventListener("pointercancel", handleControlUp);
+    });
+
+    window.addEventListener("resize", resizeCanvas);
+    window.addEventListener("blur", () => {
+      keyState.down = false;
+      stopRepeat();
+    });
+
+    resizeCanvas();
+    draw();
+  </script>
+</body>
+</html>
